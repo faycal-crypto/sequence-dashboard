@@ -41,7 +41,7 @@ function BarList({ rows, adjusted, emptyLabel }) {
     if (a.noData && b.noData) return 0;
     if (a.noData) return 1;
     if (b.noData) return -1;
-    return getRate(b) - getRate(a) || b.sent - a.sent;
+    return getRate(b) - getRate(a) || b.enrolled - a.enrolled;
   });
   const max = Math.max(0.0001, ...sorted.map(getRate));
   if (!rows.length) return <p className="sub">{emptyLabel}</p>;
@@ -49,14 +49,14 @@ function BarList({ rows, adjusted, emptyLabel }) {
     <div>
       {sorted.map((r) => (
         <div className="bar-row" key={r.id || r.ownerId || r.name}
-             title={r.noData ? `${r.name}: no enrollment yet` : `${r.name}: ${getBnc(r)} bounced / ${r.sent} sent`}>
+             title={r.noData ? `${r.name}: no enrollment yet` : `${r.name}: ${getBnc(r)} bounced / ${r.enrolled} enrolled`}>
           <span className={"bar-name" + (r.noData ? " dim" : "")}>{r.name}</span>
           <span className="bar-track">
             {!r.noData && <span className="bar-fill" style={{ width: `${(getRate(r) / max) * 100}%`, background: bounceColor(getRate(r)) }} />}
           </span>
           <span className="bar-val">
             {r.noData ? <span className="none">no enrollment</span>
-              : <>{pct(getRate(r))} <span className="muted">({getBnc(r)}/{r.sent})</span></>}
+              : <>{pct(getRate(r))} <span className="muted">({getBnc(r)}/{r.enrolled})</span></>}
           </span>
         </div>
       ))}
@@ -203,9 +203,9 @@ export default function Page() {
       {data && !data.unconfigured && (
         <>
           <div className="kpis">
-            <div className="kpi"><div className="label">Emails sent</div><div className="value">{num(data.totals.sent)}</div><div className="foot">across {data.perSequence.length} sequences</div></div>
+            <div className="kpi"><div className="label">Contacts enrolled</div><div className="value">{num(data.totals.enrolled)}</div><div className="foot">{num(data.totals.emailsSent)} emails · {data.perSequence.length} sequences</div></div>
             <div className="kpi"><div className="label">Bounced</div><div className="value">{num(data.totals.bounced)}</div><div className="foot">{data.totals.bouncedContacts} unique contacts</div></div>
-            <div className="kpi"><div className="label">Bounce rate</div><div className="value" style={{ color: bounceColor(data.totals.bounceRate) }}>{pct(data.totals.bounceRate)}</div><div className="foot">bounced / attempted</div></div>
+            <div className="kpi"><div className="label">Bounce rate</div><div className="value" style={{ color: bounceColor(data.totals.bounceRate) }}>{pct(data.totals.bounceRate)}</div><div className="foot">bounced / enrolled contacts</div></div>
             <div className="kpi"><div className="label">Adjusted bounce rate</div><div className="value" style={{ color: bounceColor(data.adjusted.bounceRate) }}>{pct(data.adjusted.bounceRate)}</div><div className="foot">excl. legit-email = NO</div></div>
             <div className="kpi"><div className="label">⚑ Legit-email bounces</div><div className="value">{num(data.totals.legitEmailBounces)}</div><div className="foot">bounced but “SDR Legit Email” = YES</div></div>
           </div>
@@ -243,14 +243,14 @@ export default function Page() {
                       <td>{sdr}</td>
                       {seqCols.map((s) => {
                         const cell = matrixLookup.get(`${sdr}|${s.id}`);
-                        const has = !!cell && cell.sent > 0;
+                        const has = !!cell && cell.enrolled > 0;
                         const r = has ? (adjMatrix ? cell.adjBounceRate : cell.bounceRate) : 0;
                         const b = has ? (adjMatrix ? cell.adjBounced : cell.bounced) : 0;
                         return (
                           <td key={s.id}>
                             {has ? (
-                              <div className="cell" style={{ background: bounceColor(r), color: cellInk(r) }} title={`${b}/${cell.sent}`}>
-                                {pct(r)}<div style={{ fontSize: 10, opacity: 0.85 }}>{b}/{cell.sent}</div>
+                              <div className="cell" style={{ background: bounceColor(r), color: cellInk(r) }} title={`${b}/${cell.enrolled}`}>
+                                {pct(r)}<div style={{ fontSize: 10, opacity: 0.85 }}>{b}/{cell.enrolled}</div>
                               </div>
                             ) : <span style={{ color: "var(--muted)" }}>—</span>}
                           </td>
@@ -316,7 +316,7 @@ export default function Page() {
             <div className="recalc-hero">
               <span className="big" style={{ color: bounceColor(data.adjusted.bounceRate) }}>{pct(data.adjusted.bounceRate)}</span>
               <span className="sub" style={{ marginTop: 0 }}>
-                overall · {num(data.adjusted.bounced)} bounces counted ({num(data.adjusted.excludedBounces)} excluded as known-bad) / {num(data.adjusted.sent)} sent
+                overall · {num(data.adjusted.bounced)} bounces counted ({num(data.adjusted.excludedBounces)} excluded as known-bad) / {num(data.adjusted.enrolled)} enrolled contacts
               </span>
             </div>
             <BarList rows={data.perSdr} adjusted={true} emptyLabel="No SDR sends in window." />
