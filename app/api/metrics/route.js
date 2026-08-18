@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 const TTL_MS = 15 * 60 * 1000; // 15 min
-let cache = { key: null, at: 0, data: null };
+const cacheStore = new Map(); // key -> { at, data }
 
 const CONTACT_PROPS = [
   "email",
@@ -22,17 +22,26 @@ const CONTACT_PROPS = [
   "hubspot_owner_id",
 ];
 
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const fresh = searchParams.get("fresh") === "1";
 
-    const { start, end } = resolveWindow();
+    // Date range: explicit ?start=&end= (YYYY-MM-DD) override the env/default window.
+    const def = resolveWindow();
+    const qsStart = searchParams.get("start");
+    const qsEnd = searchParams.get("end");
+    const start = DATE_RE.test(qsStart || "") ? qsStart : def.start;
+    const end = DATE_RE.test(qsEnd || "") ? qsEnd : def.end;
+
     const seqIds = activeSequences().map((s) => String(s.id));
     const key = `${start}|${end}|${seqIds.join(",")}`;
 
-    if (!fresh && cache.data && cache.key === key && Date.now() - cache.at < TTL_MS) {
-      return NextResponse.json({ ...cache.data, cached: true });
+    const hit = cacheStore.get(key);
+    if (!fresh && hit && Date.now() - hit.at < TTL_MS) {
+      return NextResponse.json({ ...hit.data, cached: true });
     }
 
     const emails = await searchSequenceEmails({ sequenceIds: seqIds, start, end });
@@ -48,7 +57,7 @@ export async function GET(request) {
       cached: false,
     };
 
-    cache = { key, at: Date.now(), data: payload };
+    cacheStore.set(key, { at: Date.now(), data: payload });
     return NextResponse.json(payload, {
       headers: { "Cache-Control": "s-maxage=900, stale-while-revalidate=1800" },
     });

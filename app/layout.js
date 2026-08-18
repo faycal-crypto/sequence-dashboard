@@ -1,7 +1,7 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "Sequence Performance — Bounce Dashboard",
+  title: "RevOps Bounce Rate Dashboard",
   description: "Live HubSpot sequence bounce monitoring for Landed",
 };
 

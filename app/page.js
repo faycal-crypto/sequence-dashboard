@@ -5,14 +5,36 @@ import { useEffect, useMemo, useState } from "react";
 const pct = (x) => `${(x * 100).toFixed(1)}%`;
 const num = (n) => (n ?? 0).toLocaleString("en-US");
 
-function heatColor(rate, hasData) {
-  if (!hasData) return { bg: "transparent", fg: "var(--muted)" };
-  if (rate <= 0) return { bg: "var(--grid)", fg: "var(--muted)" };
-  if (rate < 0.02) return { bg: "var(--seq-100)", fg: "var(--text-primary)" };
-  if (rate < 0.05) return { bg: "var(--seq-250)", fg: "var(--text-primary)" };
-  if (rate < 0.1) return { bg: "var(--seq-400)", fg: "#fff" };
-  if (rate < 0.2) return { bg: "var(--seq-550)", fg: "#fff" };
-  return { bg: "var(--seq-700)", fg: "#fff" };
+// Bounce-rate status bands:
+// <5% green · 5–6% orange · 6–8% light red · >8% dark red
+function bounceColor(rate) {
+  if (rate < 0.05) return "var(--b-green)";
+  if (rate < 0.06) return "var(--b-orange)";
+  if (rate <= 0.08) return "var(--b-lred)";
+  return "var(--b-dred)";
+}
+// dark ink on the lighter bands, white only on dark red
+function cellInk(rate) {
+  return rate > 0.08 ? "#fff" : "#0b0b0b";
+}
+
+const fmt = (d) => d.toISOString().slice(0, 10);
+function presetRange(kind) {
+  const now = new Date();
+  const y = now.getUTCFullYear();
+  const m = now.getUTCMonth();
+  if (kind === "month") return { start: fmt(new Date(Date.UTC(y, m, 1))), end: fmt(now) };
+  if (kind === "30d") {
+    const s = new Date(now);
+    s.setUTCDate(s.getUTCDate() - 29);
+    return { start: fmt(s), end: fmt(now) };
+  }
+  if (kind === "lastmonth")
+    return {
+      start: fmt(new Date(Date.UTC(y, m - 1, 1))),
+      end: fmt(new Date(Date.UTC(y, m, 0))),
+    };
+  return null;
 }
 
 function BarList({ rows, emptyLabel }) {
@@ -21,14 +43,22 @@ function BarList({ rows, emptyLabel }) {
   return (
     <div>
       {rows.map((r) => (
-        <div className="bar-row" key={r.id || r.ownerId || r.name} title={`${r.name}: ${r.bounced} bounced / ${r.sent} sent`}>
-          <span className="bar-name">{r.name}</span>
+        <div className="bar-row" key={r.id || r.ownerId || r.name}
+             title={r.noData ? `${r.name}: no enrollment yet` : `${r.name}: ${r.bounced} bounced / ${r.sent} sent`}>
+          <span className={"bar-name" + (r.noData ? " dim" : "")}>{r.name}</span>
           <span className="bar-track">
-            <span className="bar-fill" style={{ width: `${(r.bounceRate / max) * 100}%` }} />
+            {!r.noData && (
+              <span className="bar-fill" style={{ width: `${(r.bounceRate / max) * 100}%`, background: bounceColor(r.bounceRate) }} />
+            )}
           </span>
           <span className="bar-val">
-            {pct(r.bounceRate)}{" "}
-            <span className="muted">({r.bounced}/{r.sent})</span>
+            {r.noData ? (
+              <span className="none">no enrollment</span>
+            ) : (
+              <>
+                {pct(r.bounceRate)} <span className="muted">({r.bounced}/{r.sent})</span>
+              </>
+            )}
           </span>
         </div>
       ))}
@@ -43,15 +73,48 @@ export default function Page() {
   const [seqFilter, setSeqFilter] = useState("all");
   const [sdrFilter, setSdrFilter] = useState("all");
   const [onlyFlagged, setOnlyFlagged] = useState(false);
+  const [range, setRange] = useState({ start: "", end: "" });
+  const [preset, setPreset] = useState("month");
+  const [theme, setTheme] = useState("system");
 
-  async function load(fresh) {
+  // theme init + apply
+  useEffect(() => {
+    const saved = typeof window !== "undefined" ? window.localStorage.getItem("theme") : null;
+    if (saved) setTheme(saved);
+  }, []);
+  useEffect(() => {
+    const el = document.documentElement;
+    if (theme === "system") el.removeAttribute("data-theme");
+    else el.setAttribute("data-theme", theme);
+    if (typeof window !== "undefined") {
+      if (theme === "system") window.localStorage.removeItem("theme");
+      else window.localStorage.setItem("theme", theme);
+    }
+  }, [theme]);
+  function toggleTheme() {
+    const isDark =
+      theme === "dark" ||
+      (theme === "system" && typeof window !== "undefined" &&
+        window.matchMedia("(prefers-color-scheme: dark)").matches);
+    setTheme(isDark ? "light" : "dark");
+  }
+
+  async function load(fresh, r) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/metrics${fresh ? "?fresh=1" : ""}`);
+      const params = new URLSearchParams();
+      if (fresh) params.set("fresh", "1");
+      if (r?.start && r?.end) {
+        params.set("start", r.start);
+        params.set("end", r.end);
+      }
+      const qs = params.toString();
+      const res = await fetch(`/api/metrics${qs ? `?${qs}` : ""}`);
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Request failed");
       setData(json);
+      if (json.window && !range.start) setRange(json.window);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -59,7 +122,17 @@ export default function Page() {
     }
   }
 
-  useEffect(() => { load(false); }, []);
+  useEffect(() => { load(false, null); }, []);
+
+  function applyPreset(kind) {
+    setPreset(kind);
+    const r = presetRange(kind);
+    if (r) { setRange(r); load(true, r); }
+  }
+  function applyCustom() {
+    setPreset("custom");
+    if (range.start && range.end) load(true, range);
+  }
 
   const contacts = useMemo(() => {
     if (!data?.bouncedContacts) return [];
@@ -73,7 +146,6 @@ export default function Page() {
 
   const sdrNames = useMemo(() => (data?.perSdr || []).map((s) => s.name), [data]);
   const seqCols = useMemo(() => data?.configuredSequences || [], [data]);
-
   const matrixLookup = useMemo(() => {
     const m = new Map();
     for (const c of data?.matrix || []) m.set(`${c.sdr}|${c.sequenceId}`, c);
@@ -84,7 +156,7 @@ export default function Page() {
     <div className="wrap">
       <div className="head">
         <div>
-          <h1>Sequence Performance — Bounce Analysis</h1>
+          <h1>RevOps Bounce Rate Dashboard</h1>
           <div className="sub">
             {data?.window ? `${data.window.start} → ${data.window.end}` : "…"}
             {data?.generatedAt && ` · updated ${new Date(data.generatedAt).toLocaleString()}`}
@@ -92,9 +164,26 @@ export default function Page() {
           </div>
         </div>
         <div className="controls">
-          <button className="primary" onClick={() => load(true)} disabled={loading}>
+          <button className="ghost" onClick={toggleTheme} title="Toggle light / dark">
+            {theme === "dark" ? "☀️ Light" : theme === "light" ? "🌙 Dark" : "🌓 Theme"}
+          </button>
+          <button className="primary" onClick={() => load(true, range.start ? range : null)} disabled={loading}>
             {loading ? "Refreshing…" : "Refresh"}
           </button>
+        </div>
+      </div>
+
+      {/* date range */}
+      <div className="card" style={{ marginTop: 14, paddingTop: 14, paddingBottom: 14 }}>
+        <div className="controls">
+          <button className={"preset" + (preset === "month" ? " active" : "")} onClick={() => applyPreset("month")}>Ce mois-ci</button>
+          <button className={"preset" + (preset === "30d" ? " active" : "")} onClick={() => applyPreset("30d")}>30 derniers jours</button>
+          <button className={"preset" + (preset === "lastmonth" ? " active" : "")} onClick={() => applyPreset("lastmonth")}>Mois dernier</button>
+          <span className="datefld">
+            Du <input type="date" value={range.start || ""} onChange={(e) => setRange({ ...range, start: e.target.value })} />
+            au <input type="date" value={range.end || ""} onChange={(e) => setRange({ ...range, end: e.target.value })} />
+          </span>
+          <button onClick={applyCustom} disabled={loading || !range.start || !range.end}>Appliquer</button>
         </div>
       </div>
 
@@ -109,9 +198,8 @@ export default function Page() {
 
       {data?.unconfigured && (
         <div className="notice">
-          <strong>No sequence IDs configured yet.</strong> Add the August sequence IDs in{" "}
-          <code>lib/sequences.js</code>. To find them, open <a href="/api/sequences" target="_blank" rel="noreferrer">/api/sequences</a>{" "}
-          — it lists every sequence that sent emails in the window, with counts, so you can match IDs to names.
+          <strong>No sequence IDs configured yet.</strong> Add the sequence IDs in <code>lib/sequences.js</code> — see{" "}
+          <a href="/api/sequences" target="_blank" rel="noreferrer">/api/sequences</a>.
         </div>
       )}
 
@@ -132,13 +220,13 @@ export default function Page() {
             </div>
             <div className="kpi">
               <div className="label">Bounce rate</div>
-              <div className="value">{pct(data.totals.bounceRate)}</div>
+              <div className="value" style={{ color: bounceColor(data.totals.bounceRate) }}>{pct(data.totals.bounceRate)}</div>
               <div className="foot">bounced / attempted</div>
             </div>
             <div className="kpi">
-              <div className="label">SDRs</div>
-              <div className="value">{data.perSdr.length}</div>
-              <div className="foot">with sends in window</div>
+              <div className="label">Adjusted bounce rate</div>
+              <div className="value" style={{ color: bounceColor(data.adjusted.bounceRate) }}>{pct(data.adjusted.bounceRate)}</div>
+              <div className="foot">excl. legit-email = NO</div>
             </div>
             <div className="kpi">
               <div className="label">⚑ Legit-email bounces</div>
@@ -156,6 +244,18 @@ export default function Page() {
               <h2>Bounce rate per SDR</h2>
               <BarList rows={data.perSdr} emptyLabel="No SDR sends in window." />
             </div>
+          </div>
+
+          {/* Adjusted report */}
+          <div className="card">
+            <h2>Adjusted bounce rate — excluding “SDR Legit Email = NO”</h2>
+            <div className="recalc-hero">
+              <span className="big" style={{ color: bounceColor(data.adjusted.bounceRate) }}>{pct(data.adjusted.bounceRate)}</span>
+              <span className="sub" style={{ marginTop: 0 }}>
+                overall · {num(data.adjusted.bounced)} bounces counted ({num(data.adjusted.excludedBounces)} excluded as known-bad addresses) / {num(data.adjusted.sent)} sent
+              </span>
+            </div>
+            <BarList rows={data.adjusted.perSdr} emptyLabel="No SDR sends in window." />
           </div>
 
           <div className="card">
@@ -177,14 +277,17 @@ export default function Page() {
                       {seqCols.map((s) => {
                         const cell = matrixLookup.get(`${sdr}|${s.id}`);
                         const has = !!cell && cell.sent > 0;
-                        const col = heatColor(cell?.bounceRate || 0, has);
                         return (
                           <td key={s.id}>
-                            <div className="cell" style={{ background: col.bg, color: col.fg }}
-                                 title={has ? `${cell.bounced}/${cell.sent}` : "no sends"}>
-                              {has ? pct(cell.bounceRate) : "—"}
-                              {has && <div style={{ fontSize: 10, opacity: 0.85 }}>{cell.bounced}/{cell.sent}</div>}
-                            </div>
+                            {has ? (
+                              <div className="cell" style={{ background: bounceColor(cell.bounceRate), color: cellInk(cell.bounceRate) }}
+                                   title={`${cell.bounced}/${cell.sent}`}>
+                                {pct(cell.bounceRate)}
+                                <div style={{ fontSize: 10, opacity: 0.85 }}>{cell.bounced}/{cell.sent}</div>
+                              </div>
+                            ) : (
+                              <span style={{ color: "var(--muted)" }}>—</span>
+                            )}
                           </td>
                         );
                       })}
@@ -194,11 +297,10 @@ export default function Page() {
               </table>
             </div>
             <div className="legend">
-              <span><span className="swatch" style={{ background: "var(--seq-100)" }} />&lt;2%</span>
-              <span><span className="swatch" style={{ background: "var(--seq-250)" }} />2–5%</span>
-              <span><span className="swatch" style={{ background: "var(--seq-400)" }} />5–10%</span>
-              <span><span className="swatch" style={{ background: "var(--seq-550)" }} />10–20%</span>
-              <span><span className="swatch" style={{ background: "var(--seq-700)" }} />≥20%</span>
+              <span><span className="swatch" style={{ background: "var(--b-green)" }} />&lt;5%</span>
+              <span><span className="swatch" style={{ background: "var(--b-orange)" }} />5–6%</span>
+              <span><span className="swatch" style={{ background: "var(--b-lred)" }} />6–8%</span>
+              <span><span className="swatch" style={{ background: "var(--b-dred)" }} />&gt;8%</span>
             </div>
           </div>
 
@@ -224,11 +326,7 @@ export default function Page() {
               <table>
                 <thead>
                   <tr>
-                    <th>Contact</th>
-                    <th>Email</th>
-                    <th>Sequence</th>
-                    <th>SDR</th>
-                    <th>SDR Legit Email</th>
+                    <th>Contact</th><th>Email</th><th>Sequence</th><th>SDR</th><th>SDR Legit Email</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -252,8 +350,8 @@ export default function Page() {
               </table>
             </div>
             <div className="sub" style={{ marginTop: 10 }}>
-              <span className="pill yes">⚑ YES</span> = contact bounced but is marked as a legit email →
-              likely enrolled in the wrong sequence or not properly updated. <span className="pill no">NO</span> = flagged bad email, expected to bounce.
+              <span className="pill yes">⚑ YES</span> = bounced but marked as a legit email → likely wrong enrollment / stale data.{" "}
+              <span className="pill no">NO</span> = flagged bad email, expected to bounce (excluded from the adjusted rate).
             </div>
           </div>
         </>
