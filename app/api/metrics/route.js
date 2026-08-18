@@ -3,6 +3,7 @@ import {
   searchSequenceEmails,
   contactsForEmails,
   resolveWindow,
+  countEnrolled,
 } from "../../../lib/hubspot.js";
 import { buildMetrics } from "../../../lib/aggregate.js";
 import { activeSequences } from "../../../lib/sequences.js";
@@ -44,10 +45,14 @@ export async function GET(request) {
       return NextResponse.json({ ...hit.data, cached: true });
     }
 
-    const emails = await searchSequenceEmails({ sequenceIds: seqIds, start, end });
+    const [emails, enrolledPairs] = await Promise.all([
+      searchSequenceEmails({ sequenceIds: seqIds, start, end }),
+      Promise.all(seqIds.map((id) => countEnrolled(id, start, end).then((t) => [id, t]))),
+    ]);
+    const enrolledBySeq = Object.fromEntries(enrolledPairs);
     const bouncedIds = emails.filter((e) => e.status === "BOUNCED").map((e) => e.id);
     const bouncedContacts = await contactsForEmails(bouncedIds, CONTACT_PROPS);
-    const metrics = buildMetrics(emails, bouncedContacts);
+    const metrics = buildMetrics(emails, bouncedContacts, enrolledBySeq);
 
     const payload = {
       window: { start, end },

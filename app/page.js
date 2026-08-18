@@ -217,6 +217,7 @@ export default function Page() {
                 <Toggle checked={adjSeq} onChange={setAdjSeq} label="Adjusted view" />
               </div>
               <BarList rows={data.perSequence} adjusted={adjSeq} emptyLabel="No sequence emails in window." />
+              <div className="sub" style={{ marginTop: 8 }}>Denominator = enrolled contacts (matches HubSpot).</div>
             </div>
             <div className="card">
               <div className="head" style={{ alignItems: "center", marginBottom: 12 }}>
@@ -224,6 +225,7 @@ export default function Page() {
                 <Toggle checked={adjSdr} onChange={setAdjSdr} label="Adjusted view" />
               </div>
               <BarList rows={data.perSdr} adjusted={adjSdr} emptyLabel="No SDR sends in window." />
+              <div className="sub" style={{ marginTop: 8 }}>Denominator = contacts emailed, attributed to the sending SDR (HubSpot has no per-SDR enrolled figure).</div>
             </div>
           </div>
 
@@ -267,6 +269,7 @@ export default function Page() {
               <span><span className="swatch" style={{ background: "var(--b-lred)" }} />6–8%</span>
               <span><span className="swatch" style={{ background: "var(--b-dred)" }} />&gt;8%</span>
             </div>
+            <div className="sub" style={{ marginTop: 8 }}>Cells: bounced / contacts emailed by that SDR in that sequence.</div>
           </div>
 
           {/* Contacts who bounced */}
