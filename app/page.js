@@ -181,14 +181,14 @@ export default function Page() {
 
       <div className="card" style={{ marginTop: 14, paddingTop: 14, paddingBottom: 14 }}>
         <div className="controls">
-          <button className={"preset" + (preset === "month" ? " active" : "")} onClick={() => applyPreset("month")}>Ce mois-ci</button>
-          <button className={"preset" + (preset === "30d" ? " active" : "")} onClick={() => applyPreset("30d")}>30 derniers jours</button>
-          <button className={"preset" + (preset === "lastmonth" ? " active" : "")} onClick={() => applyPreset("lastmonth")}>Mois dernier</button>
+          <button className={"preset" + (preset === "month" ? " active" : "")} onClick={() => applyPreset("month")}>This month</button>
+          <button className={"preset" + (preset === "30d" ? " active" : "")} onClick={() => applyPreset("30d")}>Last 30 days</button>
+          <button className={"preset" + (preset === "lastmonth" ? " active" : "")} onClick={() => applyPreset("lastmonth")}>Last month</button>
           <span className="datefld">
-            Du <input type="date" value={range.start || ""} onChange={(e) => setRange({ ...range, start: e.target.value })} />
-            au <input type="date" value={range.end || ""} onChange={(e) => setRange({ ...range, end: e.target.value })} />
+            From <input type="date" value={range.start || ""} onChange={(e) => setRange({ ...range, start: e.target.value })} />
+            to <input type="date" value={range.end || ""} onChange={(e) => setRange({ ...range, end: e.target.value })} />
           </span>
-          <button onClick={applyCustom} disabled={loading || !range.start || !range.end}>Appliquer</button>
+          <button onClick={applyCustom} disabled={loading || !range.start || !range.end}>Apply</button>
         </div>
       </div>
 
@@ -214,14 +214,14 @@ export default function Page() {
             <div className="card">
               <div className="head" style={{ alignItems: "center", marginBottom: 12 }}>
                 <h2 style={{ margin: 0 }}>Bounce rate per sequence</h2>
-                <Toggle checked={adjSeq} onChange={setAdjSeq} label="Vue Adjusted" />
+                <Toggle checked={adjSeq} onChange={setAdjSeq} label="Adjusted view" />
               </div>
               <BarList rows={data.perSequence} adjusted={adjSeq} emptyLabel="No sequence emails in window." />
             </div>
             <div className="card">
               <div className="head" style={{ alignItems: "center", marginBottom: 12 }}>
                 <h2 style={{ margin: 0 }}>Bounce rate per SDR</h2>
-                <Toggle checked={adjSdr} onChange={setAdjSdr} label="Vue Adjusted" />
+                <Toggle checked={adjSdr} onChange={setAdjSdr} label="Adjusted view" />
               </div>
               <BarList rows={data.perSdr} adjusted={adjSdr} emptyLabel="No SDR sends in window." />
             </div>
@@ -230,7 +230,7 @@ export default function Page() {
           <div className="card">
             <div className="head" style={{ alignItems: "center", marginBottom: 12 }}>
               <h2 style={{ margin: 0 }}>Bounce rate — SDR × sequence</h2>
-              <Toggle checked={adjMatrix} onChange={setAdjMatrix} label="Vue Adjusted" />
+              <Toggle checked={adjMatrix} onChange={setAdjMatrix} label="Adjusted view" />
             </div>
             <div className="tablescroll">
               <table className="heat">
@@ -327,18 +327,18 @@ export default function Page() {
             <div className="head" style={{ alignItems: "center" }}>
               <h2 style={{ margin: 0 }}>SDR list hygiene — “SDR Legit Email” review</h2>
               <button className="primary" onClick={() => loadHygiene(!!hyg.data)} disabled={hyg.loading}>
-                {hyg.loading ? "Chargement…" : hyg.data ? "Recharger" : "Charger les listes SDR"}
+                {hyg.loading ? "Loading…" : hyg.data ? "Reload" : "Load SDR lists"}
               </button>
             </div>
-            {hyg.error && <div className="err" style={{ marginTop: 12 }}>{hyg.error} <div className="sub" style={{ marginTop: 6 }}>Vérifie le scope <code>crm.lists.read</code> sur la clé de service et les <code>listId</code> dans <code>lib/sequences.js</code>.</div></div>}
+            {hyg.error && <div className="err" style={{ marginTop: 12 }}>{hyg.error} <div className="sub" style={{ marginTop: 6 }}>Check the <code>crm.lists.read</code> scope on the service key and the <code>listId</code> values in <code>lib/sequences.js</code>.</div></div>}
             {!hyg.data && !hyg.loading && !hyg.error && (
-              <p className="sub" style={{ marginTop: 12 }}>Charge les listes des SDR pour voir les contacts « Legit Email » à revoir (opération plus lourde, d’où le bouton).</p>
+              <p className="sub" style={{ marginTop: 12 }}>Load the SDR lists to review contacts by SDR Legit Email (heavier query — hence the button).</p>
             )}
 
             {hyg.data && (
               <>
                 <div className="sub" style={{ marginTop: 10 }}>
-                  {hyg.data.lists.map((l) => `${l.sdr}: ${l.total}`).join(" · ")} · màj {new Date(hyg.data.generatedAt).toLocaleString()}
+                  {hyg.data.lists.map((l) => `${l.sdr}: ${l.total}`).join(" · ")} · updated {new Date(hyg.data.generatedAt).toLocaleString()}
                 </div>
 
                 {/* Unknown */}
@@ -367,7 +367,7 @@ export default function Page() {
                   <div className="head" style={{ alignItems: "center" }}>
                     <h2 style={{ margin: 0, fontSize: 14 }}>Legit Email = YES ({hyg.data.yes.filter((c) => (yesSdr === "all" || c.sdr === yesSdr) && (!yesBounceOnly || c.priorBounce)).length})</h2>
                     <div className="controls">
-                      <Toggle checked={yesBounceOnly} onChange={setYesBounceOnly} label="A déjà bouncé/échoué uniquement" />
+                      <Toggle checked={yesBounceOnly} onChange={setYesBounceOnly} label="Previously bounced/failed only" />
                       <select value={yesSdr} onChange={(e) => setYesSdr(e.target.value)}>
                         <option value="all">All SDRs</option>
                         {hygSdrs.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -376,18 +376,18 @@ export default function Page() {
                   </div>
                   <div className="tablescroll" style={{ marginTop: 10 }}>
                     <table>
-                      <thead><tr><th>Contact</th><th>Email</th><th>SDR</th><th>Email précédent bouncé / échoué</th></tr></thead>
+                      <thead><tr><th>Contact</th><th>Email</th><th>SDR</th><th>Previous email bounced / failed</th></tr></thead>
                       <tbody>
                         {hyg.data.yes.filter((c) => (yesSdr === "all" || c.sdr === yesSdr) && (!yesBounceOnly || c.priorBounce)).map((c, i) => (
                           <tr key={c.contactId + i}>
                             <td>{c.name}</td><td>{c.email}</td><td>{c.sdr}</td>
-                            <td>{c.priorBounce ? <span className="pill yes" title={c.reason}>⚑ OUI</span> : <span className="pill no">Non</span>}</td>
+                            <td>{c.priorBounce ? <span className="pill yes" title={c.reason}>⚑ YES</span> : <span className="pill no">No</span>}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
-                  <div className="sub" style={{ marginTop: 8 }}>« Email précédent bouncé/échoué » = hard bounce, adresse invalide, ou bounce marketing détecté sur le contact.</div>
+                  <div className="sub" style={{ marginTop: 8 }}>“Previous email bounced/failed” = hard bounce, invalid address, or a marketing bounce recorded on the contact.</div>
                 </div>
               </>
             )}
