@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import {
   searchSequenceEmails,
   fetchEnrolledContacts,
+  fetchSequenceNames,
   resolveWindow,
 } from "../../../lib/hubspot.js";
 import { buildMetrics } from "../../../lib/aggregate.js";
@@ -39,10 +40,12 @@ export async function GET(request) {
       return NextResponse.json({ ...hit.data, cached: true });
     }
 
-    // enrolled universe (all sequences, last-enrollment) + all sequence emails (for bounces)
-    const [emails, contacts] = await Promise.all([
+    // enrolled universe (all sequences, last-enrollment) + all sequence emails (for
+    // bounces) + live sequence names (best-effort; falls back to "Sequence <id>")
+    const [emails, contacts, nameMap] = await Promise.all([
       searchSequenceEmails({ sequenceIds: [], start, end }),
       fetchEnrolledContacts(start, end, ENROLLED_PROPS),
+      fetchSequenceNames().catch(() => ({})),
     ]);
     const bouncedSet = new Set(
       emails.filter((e) => e.status === "BOUNCED" && e.to).map((e) => e.to.toLowerCase())
@@ -50,6 +53,12 @@ export async function GET(request) {
     const emailsSent = emails.filter((e) => e.status === "SENT" || e.status === "BOUNCED").length;
 
     const metrics = buildMetrics(contacts, bouncedSet, emailsSent);
+
+    // Apply live sequence names where available
+    const nm = (id, fallback) => nameMap[String(id)] || fallback;
+    metrics.perSequence.forEach((s) => { s.name = nm(s.id, s.name); });
+    metrics.matrix.forEach((c) => { c.sequence = nm(c.sequenceId, c.sequence); });
+    metrics.bouncedContacts.forEach((c) => { c.sequence = nm(c.sequenceId, c.sequence); });
 
     const payload = {
       window: { start, end },
