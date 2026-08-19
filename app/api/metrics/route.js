@@ -47,12 +47,7 @@ export async function GET(request) {
       fetchEnrolledContacts(start, end, ENROLLED_PROPS),
       fetchSequenceNames().catch(() => ({})),
     ]);
-    const bouncedSet = new Set(
-      emails.filter((e) => e.status === "BOUNCED" && e.to).map((e) => e.to.toLowerCase())
-    );
-    const emailsSent = emails.filter((e) => e.status === "SENT" || e.status === "BOUNCED").length;
-
-    const metrics = buildMetrics(contacts, bouncedSet, emailsSent);
+    const metrics = buildMetrics(contacts, emails);
 
     // Apply live sequence names ONLY where we don't already have a config name
     // (config names in lib/sequences.js take precedence over the HubSpot API name).

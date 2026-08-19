@@ -266,7 +266,7 @@ export default function Page() {
                 </div>
               </div>
               <BarList rows={sdrRows} adjusted={adjSdr} emptyLabel="No SDR enrollment in window." />
-              <div className="sub" style={{ marginTop: 8 }}>Denominator = enrolled contacts, attributed by contact owner ({sdrRepSeq === "all" ? "all sequences" : "selected sequence"}). HubSpot has no per-SDR enrolled figure.</div>
+              <div className="sub" style={{ marginTop: 8 }}>Denominator = contacts emailed, attributed by email sender ({sdrRepSeq === "all" ? "all sequences" : "selected sequence"}). HubSpot has no per-SDR enrolled figure.</div>
             </div>
           </div>
 
@@ -316,7 +316,7 @@ export default function Page() {
               <span><span className="swatch" style={{ background: "var(--b-orange)" }} />6–8%</span>
               <span><span className="swatch" style={{ background: "var(--b-dred)" }} />&gt;8%</span>
             </div>
-            <div className="sub" style={{ marginTop: 8 }}>Cells: bounced / enrolled contacts (by contact owner) in that sequence.</div>
+            <div className="sub" style={{ marginTop: 8 }}>Cells: bounced / contacts emailed by that sender in that sequence.</div>
           </div>
 
           {/* Contacts who bounced */}
