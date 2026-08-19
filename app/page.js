@@ -195,7 +195,7 @@ export default function Page() {
       {error && <div className="err"><strong>Couldn’t load data.</strong> {error}</div>}
 
       {data?.unconfigured && (
-        <div className="notice"><strong>No sequence IDs configured yet.</strong> Add them in <code>lib/sequences.js</code> — see <a href="/api/sequences" target="_blank" rel="noreferrer">/api/sequences</a>.</div>
+        <div className="notice"><strong>No enrolled contacts in this window.</strong> Try a different date range.</div>
       )}
 
       {loading && !data && <div className="spin">Loading…</div>}
@@ -217,7 +217,7 @@ export default function Page() {
                 <Toggle checked={adjSeq} onChange={setAdjSeq} label="Adjusted view" />
               </div>
               <BarList rows={data.perSequence} adjusted={adjSeq} emptyLabel="No sequence emails in window." />
-              <div className="sub" style={{ marginTop: 8 }}>Denominator = enrolled contacts (matches HubSpot).</div>
+              <div className="sub" style={{ marginTop: 8 }}>Denominator = enrolled contacts (last-enrolled in period, all sequences) — matches HubSpot.</div>
             </div>
             <div className="card">
               <div className="head" style={{ alignItems: "center", marginBottom: 12 }}>
