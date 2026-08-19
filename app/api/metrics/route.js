@@ -54,8 +54,10 @@ export async function GET(request) {
 
     const metrics = buildMetrics(contacts, bouncedSet, emailsSent);
 
-    // Apply live sequence names where available
-    const nm = (id, fallback) => nameMap[String(id)] || fallback;
+    // Apply live sequence names ONLY where we don't already have a config name
+    // (config names in lib/sequences.js take precedence over the HubSpot API name).
+    const genericRe = /^Sequence \d+$/;
+    const nm = (id, cur) => (genericRe.test(cur) && nameMap[String(id)] ? nameMap[String(id)] : cur);
     metrics.perSequence.forEach((s) => { s.name = nm(s.id, s.name); });
     metrics.matrix.forEach((c) => { c.sequence = nm(c.sequenceId, c.sequence); });
     metrics.bouncedContacts.forEach((c) => { c.sequence = nm(c.sequenceId, c.sequence); });

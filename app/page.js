@@ -5,14 +5,17 @@ import { useEffect, useMemo, useState } from "react";
 const pct = (x) => `${(x * 100).toFixed(1)}%`;
 const num = (n) => (n ?? 0).toLocaleString("en-US");
 
-// Bounce-rate bands: <5% green · 5–6% orange · 6–8% light red · >8% dark red
+// Bounce-rate bands: <5% green · 5–6% yellow · 6–8% orange · >8% dark red
 function bounceColor(rate) {
   if (rate < 0.05) return "var(--b-green)";
-  if (rate < 0.06) return "var(--b-orange)";
-  if (rate <= 0.08) return "var(--b-lred)";
+  if (rate < 0.06) return "var(--b-yellow)";
+  if (rate <= 0.08) return "var(--b-orange)";
   return "var(--b-dred)";
 }
 const cellInk = (rate) => (rate > 0.08 ? "#fff" : "#0b0b0b");
+
+const PORTAL_ID = "21233403";
+const hsContactUrl = (id) => `https://app.hubspot.com/contacts/${PORTAL_ID}/contact/${id}`;
 
 const fmt = (d) => d.toISOString().slice(0, 10);
 function presetRange(kind) {
@@ -309,11 +312,11 @@ export default function Page() {
             </div>
             <div className="legend">
               <span><span className="swatch" style={{ background: "var(--b-green)" }} />&lt;5%</span>
-              <span><span className="swatch" style={{ background: "var(--b-orange)" }} />5–6%</span>
-              <span><span className="swatch" style={{ background: "var(--b-lred)" }} />6–8%</span>
+              <span><span className="swatch" style={{ background: "var(--b-yellow)" }} />5–6%</span>
+              <span><span className="swatch" style={{ background: "var(--b-orange)" }} />6–8%</span>
               <span><span className="swatch" style={{ background: "var(--b-dred)" }} />&gt;8%</span>
             </div>
-            <div className="sub" style={{ marginTop: 8 }}>Cells: bounced / contacts emailed by that SDR in that sequence.</div>
+            <div className="sub" style={{ marginTop: 8 }}>Cells: bounced / enrolled contacts (by contact owner) in that sequence.</div>
           </div>
 
           {/* Contacts who bounced */}
@@ -339,14 +342,15 @@ export default function Page() {
             </div>
             <div className="tablescroll" style={{ marginTop: 12 }}>
               <table>
-                <thead><tr><th>Contact</th><th>Email</th><th>Sequence</th><th>SDR</th><th>SDR Legit Email</th></tr></thead>
+                <thead><tr><th>Contact</th><th>Email</th><th>Sequence</th><th>SDR</th><th>SDR Legit Email</th><th>Record ID</th></tr></thead>
                 <tbody>
                   {contacts.map((c, i) => (
                     <tr key={(c.contactId || c.email) + i}>
                       <td>{c.name}</td><td>{c.email}</td><td>{c.sequence}</td><td>{c.sdr}</td><td>{LEGIT_PILL(c.legitEmail)}</td>
+                      <td>{c.contactId ? <a href={hsContactUrl(c.contactId)} target="_blank" rel="noreferrer">{c.contactId} ↗</a> : "—"}</td>
                     </tr>
                   ))}
-                  {!contacts.length && <tr><td colSpan={5} className="sub" style={{ padding: 20 }}>No bounced contacts match the filters.</td></tr>}
+                  {!contacts.length && <tr><td colSpan={6} className="sub" style={{ padding: 20 }}>No bounced contacts match the filters.</td></tr>}
                 </tbody>
               </table>
             </div>
