@@ -84,6 +84,10 @@ export default function Page() {
   const [adjSeq, setAdjSeq] = useState(false);
   const [adjSdr, setAdjSdr] = useState(false);
   const [adjMatrix, setAdjMatrix] = useState(false);
+  // per-report sequence filters
+  const [seqRepSeq, setSeqRepSeq] = useState("all");
+  const [sdrRepSeq, setSdrRepSeq] = useState("all");
+  const [matRepSeq, setMatRepSeq] = useState("all");
 
   // data-hygiene (SDR lists) — loaded on demand
   const [hyg, setHyg] = useState({ loading: false, data: null, error: null });
@@ -158,6 +162,28 @@ export default function Page() {
   }, [data]);
   const hygSdrs = useMemo(() => (hyg.data?.lists || []).map((l) => l.sdr), [hyg]);
 
+  // per-report sequence filtering (client-side, from loaded data)
+  const seqRows = useMemo(() => {
+    const all = data?.perSequence || [];
+    return seqRepSeq === "all" ? all : all.filter((s) => String(s.id) === seqRepSeq);
+  }, [data, seqRepSeq]);
+
+  const sdrRows = useMemo(() => {
+    if (!data) return [];
+    if (sdrRepSeq === "all") return data.perSdr;
+    const names = data.perSdr.map((s) => s.name);
+    return names.map((n) => {
+      const c = (data.matrix || []).find((m) => m.sdr === n && String(m.sequenceId) === sdrRepSeq);
+      return c
+        ? { name: n, ownerId: n, enrolled: c.enrolled, bounced: c.bounced, adjBounced: c.adjBounced, bounceRate: c.bounceRate, adjBounceRate: c.adjBounceRate, noData: c.enrolled === 0 }
+        : { name: n, ownerId: n, enrolled: 0, bounced: 0, adjBounced: 0, bounceRate: 0, adjBounceRate: 0, noData: true };
+    });
+  }, [data, sdrRepSeq]);
+
+  const matCols = useMemo(() => {
+    return matRepSeq === "all" ? seqCols : seqCols.filter((s) => String(s.id) === matRepSeq);
+  }, [seqCols, matRepSeq]);
+
   return (
     <div className="wrap">
       <div className="head">
@@ -214,36 +240,54 @@ export default function Page() {
             <div className="card">
               <div className="head" style={{ alignItems: "center", marginBottom: 12 }}>
                 <h2 style={{ margin: 0 }}>Bounce rate per sequence</h2>
-                <Toggle checked={adjSeq} onChange={setAdjSeq} label="Adjusted view" />
+                <div className="controls">
+                  <select value={seqRepSeq} onChange={(e) => setSeqRepSeq(e.target.value)}>
+                    <option value="all">All sequences</option>
+                    {seqCols.map((s) => <option key={s.id} value={String(s.id)}>{s.name}</option>)}
+                  </select>
+                  <Toggle checked={adjSeq} onChange={setAdjSeq} label="Adjusted view" />
+                </div>
               </div>
-              <BarList rows={data.perSequence} adjusted={adjSeq} emptyLabel="No sequence emails in window." />
+              <BarList rows={seqRows} adjusted={adjSeq} emptyLabel="No sequence in window." />
               <div className="sub" style={{ marginTop: 8 }}>Denominator = enrolled contacts (last-enrolled in period, all sequences) — matches HubSpot.</div>
             </div>
             <div className="card">
               <div className="head" style={{ alignItems: "center", marginBottom: 12 }}>
                 <h2 style={{ margin: 0 }}>Bounce rate per SDR</h2>
-                <Toggle checked={adjSdr} onChange={setAdjSdr} label="Adjusted view" />
+                <div className="controls">
+                  <select value={sdrRepSeq} onChange={(e) => setSdrRepSeq(e.target.value)}>
+                    <option value="all">All sequences</option>
+                    {seqCols.map((s) => <option key={s.id} value={String(s.id)}>{s.name}</option>)}
+                  </select>
+                  <Toggle checked={adjSdr} onChange={setAdjSdr} label="Adjusted view" />
+                </div>
               </div>
-              <BarList rows={data.perSdr} adjusted={adjSdr} emptyLabel="No SDR sends in window." />
-              <div className="sub" style={{ marginTop: 8 }}>Denominator = contacts emailed, attributed to the sending SDR (HubSpot has no per-SDR enrolled figure).</div>
+              <BarList rows={sdrRows} adjusted={adjSdr} emptyLabel="No SDR enrollment in window." />
+              <div className="sub" style={{ marginTop: 8 }}>Denominator = enrolled contacts, attributed by contact owner ({sdrRepSeq === "all" ? "all sequences" : "selected sequence"}). HubSpot has no per-SDR enrolled figure.</div>
             </div>
           </div>
 
           <div className="card">
             <div className="head" style={{ alignItems: "center", marginBottom: 12 }}>
               <h2 style={{ margin: 0 }}>Bounce rate — SDR × sequence</h2>
-              <Toggle checked={adjMatrix} onChange={setAdjMatrix} label="Adjusted view" />
+              <div className="controls">
+                <select value={matRepSeq} onChange={(e) => setMatRepSeq(e.target.value)}>
+                  <option value="all">All sequences</option>
+                  {seqCols.map((s) => <option key={s.id} value={String(s.id)}>{s.name}</option>)}
+                </select>
+                <Toggle checked={adjMatrix} onChange={setAdjMatrix} label="Adjusted view" />
+              </div>
             </div>
             <div className="tablescroll">
               <table className="heat">
                 <thead>
-                  <tr><th>SDR</th>{seqCols.map((s) => <th className="rot num" key={s.id} title={s.name}>{s.name}</th>)}</tr>
+                  <tr><th>SDR</th>{matCols.map((s) => <th className="rot num" key={s.id} title={s.name}>{s.name}</th>)}</tr>
                 </thead>
                 <tbody>
                   {sdrNames.map((sdr) => (
                     <tr key={sdr}>
                       <td>{sdr}</td>
-                      {seqCols.map((s) => {
+                      {matCols.map((s) => {
                         const cell = matrixLookup.get(`${sdr}|${s.id}`);
                         const has = !!cell && cell.enrolled > 0;
                         const r = has ? (adjMatrix ? cell.adjBounceRate : cell.bounceRate) : 0;
