@@ -112,6 +112,12 @@ button.preset { padding: 6px 10px; font-size: 13px; }
 button.preset.active { background: var(--series-1); color: #fff; border-color: transparent; }
 .datefld { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-secondary); }
 
+.ms { position: relative; display: inline-block; }
+.ms-backdrop { position: fixed; inset: 0; z-index: 19; }
+.ms-panel { position: absolute; z-index: 20; top: calc(100% + 4px); right: 0; background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 8px; max-height: 280px; overflow: auto; min-width: 260px; box-shadow: 0 8px 28px rgba(0,0,0,0.18); }
+.ms-panel label { display: flex; gap: 8px; align-items: center; padding: 5px 8px; font-size: 13px; white-space: nowrap; cursor: pointer; border-radius: 6px; }
+.ms-panel label:hover { background: var(--grid); }
+
 .heat td { text-align: center; font-variant-numeric: tabular-nums; color: var(--text-primary); }
 .heat th.rot { font-size: 11px; }
 .heat .cell { border-radius: 6px; padding: 6px 4px; }

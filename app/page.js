@@ -37,6 +37,36 @@ function Toggle({ checked, onChange, label }) {
   );
 }
 
+function SeqMultiSelect({ options, selected, onChange }) {
+  const [open, setOpen] = useState(false);
+  const label = selected.length === 0 ? "All sequences" : `${selected.length} selected`;
+  const toggle = (id) => {
+    onChange(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id]);
+  };
+  return (
+    <div className="ms">
+      <button onClick={() => setOpen((o) => !o)}>{label} ▾</button>
+      {open && (
+        <>
+          <div className="ms-backdrop" onClick={() => setOpen(false)} />
+          <div className="ms-panel">
+            <label onClick={(e) => e.stopPropagation()}>
+              <input type="checkbox" checked={selected.length === 0} onChange={() => onChange([])} />
+              <strong>All sequences</strong>
+            </label>
+            {options.map((o) => (
+              <label key={o.id}>
+                <input type="checkbox" checked={selected.includes(String(o.id))} onChange={() => toggle(String(o.id))} />
+                {o.name}
+              </label>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function BarList({ rows, adjusted, emptyLabel }) {
   const getRate = (r) => (adjusted ? r.adjBounceRate : r.bounceRate);
   const getBnc = (r) => (adjusted ? r.adjBounced : r.bounced);
@@ -87,10 +117,10 @@ export default function Page() {
   const [adjSeq, setAdjSeq] = useState(false);
   const [adjSdr, setAdjSdr] = useState(false);
   const [adjMatrix, setAdjMatrix] = useState(false);
-  // per-report sequence filters
-  const [seqRepSeq, setSeqRepSeq] = useState("all");
-  const [sdrRepSeq, setSdrRepSeq] = useState("all");
-  const [matRepSeq, setMatRepSeq] = useState("all");
+  // per-report sequence filters (multi-select; empty array = all)
+  const [selSeq, setSelSeq] = useState([]);
+  const [selSdr, setSelSdr] = useState([]);
+  const [selMat, setSelMat] = useState([]);
 
   // data-hygiene (SDR lists) — loaded on demand
   const [hyg, setHyg] = useState({ loading: false, data: null, error: null });
@@ -168,24 +198,50 @@ export default function Page() {
   // per-report sequence filtering (client-side, from loaded data)
   const seqRows = useMemo(() => {
     const all = data?.perSequence || [];
-    return seqRepSeq === "all" ? all : all.filter((s) => String(s.id) === seqRepSeq);
-  }, [data, seqRepSeq]);
+    return selSeq.length === 0 ? all : all.filter((s) => selSeq.includes(String(s.id)));
+  }, [data, selSeq]);
 
   const sdrRows = useMemo(() => {
     if (!data) return [];
-    if (sdrRepSeq === "all") return data.perSdr;
+    if (selSdr.length === 0) return data.perSdr;
     const names = data.perSdr.map((s) => s.name);
+    const acc = new Map(names.map((n) => [n, { enrolled: 0, bounced: 0, adjBounced: 0 }]));
+    for (const c of data.matrix || []) {
+      if (!selSdr.includes(String(c.sequenceId))) continue;
+      const a = acc.get(c.sdr) || { enrolled: 0, bounced: 0, adjBounced: 0 };
+      a.enrolled += c.enrolled; a.bounced += c.bounced; a.adjBounced += c.adjBounced;
+      acc.set(c.sdr, a);
+    }
     return names.map((n) => {
-      const c = (data.matrix || []).find((m) => m.sdr === n && String(m.sequenceId) === sdrRepSeq);
-      return c
-        ? { name: n, ownerId: n, enrolled: c.enrolled, bounced: c.bounced, adjBounced: c.adjBounced, bounceRate: c.bounceRate, adjBounceRate: c.adjBounceRate, noData: c.enrolled === 0 }
-        : { name: n, ownerId: n, enrolled: 0, bounced: 0, adjBounced: 0, bounceRate: 0, adjBounceRate: 0, noData: true };
+      const a = acc.get(n) || { enrolled: 0, bounced: 0, adjBounced: 0 };
+      return {
+        name: n, ownerId: n, enrolled: a.enrolled, bounced: a.bounced, adjBounced: a.adjBounced,
+        bounceRate: a.enrolled ? a.bounced / a.enrolled : 0,
+        adjBounceRate: a.enrolled ? a.adjBounced / a.enrolled : 0,
+        noData: a.enrolled === 0,
+      };
     });
-  }, [data, sdrRepSeq]);
+  }, [data, selSdr]);
 
   const matCols = useMemo(() => {
-    return matRepSeq === "all" ? seqCols : seqCols.filter((s) => String(s.id) === matRepSeq);
-  }, [seqCols, matRepSeq]);
+    return selMat.length === 0 ? seqCols : seqCols.filter((s) => selMat.includes(String(s.id)));
+  }, [seqCols, selMat]);
+
+  function downloadContactsCsv() {
+    const cols = ["Contact", "Email", "Sequence", "SDR", "SDR Legit Email", "Record ID", "Record URL"];
+    const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const lines = [cols.join(",")];
+    for (const c of contacts) {
+      lines.push([c.name, c.email, c.sequence, c.sdr, c.legitEmail, c.contactId || "", c.contactId ? hsContactUrl(c.contactId) : ""].map(esc).join(","));
+    }
+    const blob = new Blob(["﻿" + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `bounced-contacts_${data?.window?.start || ""}_${data?.window?.end || ""}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  }
 
   return (
     <div className="wrap">
@@ -244,10 +300,7 @@ export default function Page() {
               <div className="head" style={{ alignItems: "center", marginBottom: 12 }}>
                 <h2 style={{ margin: 0 }}>Bounce rate per sequence</h2>
                 <div className="controls">
-                  <select value={seqRepSeq} onChange={(e) => setSeqRepSeq(e.target.value)}>
-                    <option value="all">All sequences</option>
-                    {seqCols.map((s) => <option key={s.id} value={String(s.id)}>{s.name}</option>)}
-                  </select>
+                  <SeqMultiSelect options={seqCols} selected={selSeq} onChange={setSelSeq} />
                   <Toggle checked={adjSeq} onChange={setAdjSeq} label="Adjusted view" />
                 </div>
               </div>
@@ -258,15 +311,12 @@ export default function Page() {
               <div className="head" style={{ alignItems: "center", marginBottom: 12 }}>
                 <h2 style={{ margin: 0 }}>Bounce rate per SDR</h2>
                 <div className="controls">
-                  <select value={sdrRepSeq} onChange={(e) => setSdrRepSeq(e.target.value)}>
-                    <option value="all">All sequences</option>
-                    {seqCols.map((s) => <option key={s.id} value={String(s.id)}>{s.name}</option>)}
-                  </select>
+                  <SeqMultiSelect options={seqCols} selected={selSdr} onChange={setSelSdr} />
                   <Toggle checked={adjSdr} onChange={setAdjSdr} label="Adjusted view" />
                 </div>
               </div>
               <BarList rows={sdrRows} adjusted={adjSdr} emptyLabel="No SDR enrollment in window." />
-              <div className="sub" style={{ marginTop: 8 }}>Denominator = contacts emailed, attributed by email sender ({sdrRepSeq === "all" ? "all sequences" : "selected sequence"}). HubSpot has no per-SDR enrolled figure.</div>
+              <div className="sub" style={{ marginTop: 8 }}>Denominator = contacts emailed, attributed by email sender ({selSdr.length === 0 ? "all sequences" : "selected sequences"}). HubSpot has no per-SDR enrolled figure.</div>
             </div>
           </div>
 
@@ -274,10 +324,7 @@ export default function Page() {
             <div className="head" style={{ alignItems: "center", marginBottom: 12 }}>
               <h2 style={{ margin: 0 }}>Bounce rate — SDR × sequence</h2>
               <div className="controls">
-                <select value={matRepSeq} onChange={(e) => setMatRepSeq(e.target.value)}>
-                  <option value="all">All sequences</option>
-                  {seqCols.map((s) => <option key={s.id} value={String(s.id)}>{s.name}</option>)}
-                </select>
+                <SeqMultiSelect options={seqCols} selected={selMat} onChange={setSelMat} />
                 <Toggle checked={adjMatrix} onChange={setAdjMatrix} label="Adjusted view" />
               </div>
             </div>
@@ -338,6 +385,7 @@ export default function Page() {
                   <option value="NO">NO</option>
                   <option value="UNKNOWN">Unknown</option>
                 </select>
+                <button onClick={downloadContactsCsv} disabled={!contacts.length}>⬇ Download CSV</button>
               </div>
             </div>
             <div className="tablescroll" style={{ marginTop: 12 }}>
